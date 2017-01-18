@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="js/three.js"></script>
+    <script src="js/DDSLoader.js"></script>
+    <script src="js/SceneLoader.js"></script>
+    <script src="js/OBJLoader.js"></script>
+    <script src="js/Detector.js"></script>
+    <script src="js/stats.min.js"></script>
+    <script src="js/OrbitControls.js"></script>
+
+   <style>
+        body {
+            background: #000;
+            color: #fff;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+            font-family: georgia;
+            text-align: center;
+        }
+        
+        #progress {
+            color: red;
+            top: 7em;
+            width: 100%;
+            font-size: 3em;
+            font-variant: small-caps;
+            font-weight: bold;
+            position: absolute;
+            z-index: 100;
+            text-align: center;
+            text-shadow: #000 0px 0px 10px;
+            display: none;
+        }
+        
+        .shadow {
+            -moz-box-shadow: 0px 0px 5px #000;
+            -webkit-box-shadow: 0px 0px 5px #000;
+            box-shadow: 0px 0px 5px #000;
+        }
+        
+        #progressbar {
+            text-align: center;
+            background: white;
+            width: 250px;
+            height: 10px;
+        }
+        
+        #bar {
+            background: #d00;
+            width: 50px;
+            height: 10px;
+        }
+        
+        .left,
+        .right,
+        .right_bottom,
+        #panel {
+            position: absolute;
+            color: #fff;
+            font-family: Geneva, sans-serif;
+            z-index: 100;
+        }
+        
+        .left {
+            bottom: 1em;
+            left: 1em;
+            text-align: left;            
+        }
+        
+        .right {
+            top: 0;
+            right: 0;
+            text-align: right;            
+        }
+        
+        a {
+            color: #f58231;
+        }
+        
+        .right_bottom {
+            bottom: 1em;
+            right: 1.5em;
+            text-align: left;
+            color: #f58231;
+        }
+                
+        #panel {
+            bottom: 2.5em;
+            right: 1em;
+            text-align: right;            
+        }        
+        
+        a:link, a:visited {
+            text-decoration: none;
+        }
+        
+        a:hover, a:active, .right_bottom:hover {
+            color: aqua;
+        }
+        
+         p {
+            margin: 0;
+            padding: 0;
+        }
+     
+    </style>
+    
+
+</head>
+
+<body>
+    <div id="progress">
+        <span id="message">Loading ...</span>
+        <center>
+            <div id="progressbar" class="shadow">
+                <div id="bar" class="shadow"></div>
+            </div>
+        </center>
+    </div>
+
+    <div id="panel" value="hidden" class="Hide">        
+        <p>왼쪽마우스   : 화면 회전</p>
+        <p>오른쪽마우스 : 화면 이동</p>
+        <p>마우스 휠   : 줌인, 줌아웃</p>
+    </div>
+    
+    <div class="right_bottom" id="control">
+        화면 컨트롤 방법
+    </div>
+    
+    <div class="left">
+        <p><a href="#" target="#">크게 보기</a></p>
+    </div>
+
+    <div class="right">
+        <img src="images/sticker1.png">
+    </div>
+
+    <script>
+        if (!Detector.webgl) Detector.addGetWebGLMessage();
+
+        var SCREEN_WIDTH = window.innerWidth;
+        var SCREEN_HEIGHT = window.innerHeight;
+
+        var container, stats;
+
+        var camera, scene, loaded;
+        var renderer;
+
+        var mouseX = 0,
+            mouseY = 0;
+
+        var mixers = [];
+
+        var windowHalfX = window.innerWidth / 2;
+        var windowHalfY = window.innerHeight / 2;       
+
+        var clock = new THREE.Clock();
+
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
+
+        THREE.DefaultLoadingManager.onProgress = function (item, loaded, total) {
+
+            console.log(item, loaded, total);
+
+        };
+
+        init();
+        animate();
+
+        function $(id) {
+
+            return document.getElementById(id);
+
+        }
+
+        function init() {
+
+            container = document.createElement('div');
+            document.body.appendChild(container);
+            
+             //document.getElementById("panel").style.color = "red";            
+            document.getElementById('panel').style.visibility = 'hidden';
+            document.getElementById("control").addEventListener("mouseover", myFunction);
+           
+            function myFunction() {
+                if (document.getElementById('panel').getAttribute('class') === 'Hide') {
+                    document.getElementById('panel').setAttribute('class', 'Show');
+                    document.getElementById('panel').style.visibility = 'visible';
+                } else {
+                    document.getElementById('panel').setAttribute('class', 'Hide');
+                    document.getElementById('panel').style.visibility = 'hidden';                    
+                };
+            }; 
+
+            var loadScene = createLoadScene();
+
+            camera = loadScene.camera;
+            scene = loadScene.scene;
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: true
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+            renderer.domElement.style.position = "relative";
+            container.appendChild(renderer.domElement);
+
+            renderer.gammaInput = true;
+            renderer.gammaOutput = true;
+
+            stats = new Stats();
+            container.appendChild(stats.dom);
+
+            var callbackProgress = function (progress, result) {
+
+                var bar = 250,
+                    total = progress.totalModels + progress.totalTextures,
+                    loaded = progress.loadedModels + progress.loadedTextures;
+
+                if (total)
+                    bar = Math.floor(bar * loaded / total);
+
+                $("bar").style.width = bar + "px";
+
+            };
+
+            var callbackFinished = function (result) {
+
+                loaded = result;
+
+                $("message").style.display = "none";
+                $("progressbar").style.display = "none";
+               
+                //
+
+                $("progress").style.display = "none";
+
+                camera = loaded.currentCamera;
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+
+                scene = loaded.scene;
+
+                /* Controls */
+                //controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls = new THREE.OrbitControls(camera);
+                //controls.enableDamping = true;
+                //controls.dampingFactor = 0.25;
+                controls.enableZoom = true;
+                // How far you can orbit vertically, upper and lower limits.
+                // Range is 0 to Math.PI radians.
+                //controls.minPolarAngle = 0; // radians
+                //controls.maxPolarAngle = Math.PI; // radians
+
+                // How far you can orbit horizontally, upper and lower limits.
+                // If set, must be a sub-interval of the interval [ - Math.PI, Math.PI ].
+                //controls.minAzimuthAngle = - Infinity; // radians
+                //controls.maxAzimuthAngle = Infinity; // radians
+
+                //Zoom in / zoom out
+                this.minDistance = 1;
+                this.maxDistance = 1;
+                //Where to stop rotation :
+                this.minPolarAngle = 1; // radians
+                this.maxPolarAngle = Math.PI; // radians
+                //Don't let to go below the ground
+                controls.maxPolarAngle = Math.PI/2.2;
+                controls.minDistance = 20;
+                controls.maxDistance = 110;
+
+            };
+
+            $("progress").style.display = "block";
+
+            THREE.Loader.Handlers.add(/\.dds$/i, new THREE.DDSLoader());
+
+            var loader = new THREE.SceneLoader();
+
+
+
+            loader.addHierarchyHandler("obj", THREE.OBJLoader);
+
+
+            loader.callbackProgress = callbackProgress;
+
+            loader.load("js/scene5.js", callbackFinished);
+
+            //
+
+            window.addEventListener('resize', onWindowResize, false);
+
+        }
+
+        function onWindowResize() {
+
+            windowHalfX = window.innerWidth / 2;
+            windowHalfY = window.innerHeight / 2;
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+        }
+
+        function onDocumentMouseMove(event) {
+
+            //mouseX = ( event.clientX - windowHalfX );
+            //mouseY = ( event.clientY - windowHalfY );
+
+        }
+
+        function createLoadScene() {
+
+            var result = {
+
+                scene: new THREE.Scene(),
+                camera: new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 1, 1000)
+
+            };
+
+            result.camera.position.z = 100;
+            result.scene.add(result.camera);
+
+            var object, geometry, material, light, count = 500,
+                range = 200;
+
+            material = new THREE.MeshLambertMaterial({
+                color: 0xffffff
+            });
+            geometry = new THREE.BoxGeometry(5, 5, 5);
+
+            for (var i = 0; i < count; i++) {
+
+                object = new THREE.Mesh(geometry, material);
+
+                object.position.x = (Math.random() - 0.5) * range;
+                object.position.y = (Math.random() - 0.5) * range;
+                object.position.z = (Math.random() - 0.5) * range;
+
+                object.rotation.x = Math.random() * 6;
+                object.rotation.y = Math.random() * 6;
+                object.rotation.z = Math.random() * 6;
+
+                object.matrixAutoUpdate = false;
+                object.updateMatrix();
+
+                result.scene.add(object);
+
+            }
+
+            result.scene.matrixAutoUpdate = false;
+
+            light = new THREE.PointLight(0xffffff);
+            result.scene.add(light);
+
+            light = new THREE.DirectionalLight(0x111111);
+            light.position.x = 1;
+            result.scene.add(light);
+
+            return result;
+
+        }
+
+        //
+
+        function animate() {
+
+            requestAnimationFrame(animate);
+
+            render();
+            stats.update();
+            controls.update();
+
+        }
+
+        function render() {
+
+            renderer.render(scene, camera);
+
+        }
+    </script>
+</body>
+
+</html>
